@@ -3,33 +3,81 @@ import time
 import os
 import csv
 
-# input_file, output_file, array_name
-files = (('landfill_dates.csv',  os.path.join('bin_day', 'landfill_unix.hpp'),  'landfill_unix' ),
-         ('recycling_dates.csv', os.path.join('bin_day', 'recycling_unix.hpp'), 'recycling_unix'))
+# # input_file, output_file, array_name
+# files = (('landfill_dates.csv',  os.path.join('bin_day', 'landfill_unix.hpp'),  'landfill_unix' ),
+#          ('recycling_dates.csv', os.path.join('bin_day', 'recycling_unix.hpp'), 'recycling_unix'))
+
+# Output file name with NO extension
+OUTPUT_FILENAME = os.path.join('bin_day', 'auto_generated', 'data')
+
+# input file, led pin number
+SETTINGS = (('landfill.csv', 10),
+            ('recycling.csv', 9))
 
 def main():
-    for file in files:
-        create_header(file[0], file[1], file[2])
-
-def date_to_unix(day, month, year):
-    return int(time.mktime(datetime.datetime(year, month, day, 0, 0, 0).timetuple()))
-
-def create_header(csv_file, hpp_file, array_name):
-    # Read the data
-    data = []
-    with open(csv_file) as csvfile:
-        reader = csv.reader(csvfile, delimiter=',')
-        for row in reader:
-            data.append(row)
-    # And write some data
-    with open(hpp_file, 'w') as header_file:
-        header_file.write("#include <stdint>\n\n")
-        header_file.write("uint64_t " + array_name + "[] = {\n")
-        for date in data:
-            unix = date_to_unix(int(date[0]), int(date[1]), int(date[2]))
-            header_file.write("\t" + str(unix) + ",\n")
-        header_file.write("};\n")
+    cpp_filename = OUTPUT_FILENAME+".cpp"
+    hpp_filename = OUTPUT_FILENAME+".hpp"
+    # Create a blank hpp and cpp file and fill it with necessary stuff
+    init_files(cpp_filename, hpp_filename, len(SETTINGS))
+    # Read data from each of the csvs listed in SETTINGS
+    for data_set in SETTINGS:
+        unix_times = []
+        with open(data_set[0]) as csvfile:
+            reader = csv.reader(csvfile, delimiter=',')
+            for date in reader:
+                unix_timestamp = date_to_unix(int(date[0]), int(date[1]), int(date[2]))
+                unix_times.append(unix_timestamp)
+        write_array_to_cpp(cpp_filename, data_set[0], unix_times, data_set[1])
 
 
+def init_files(cpp_filename, hpp_filename, number_of_datasets):
+    with open(cpp_filename, 'w') as cpp_file: # cpp file
+        cpp_file.write("#include <stdint>\n")
+        cpp_file.write("#include \"" + os.path.split(hpp_filename)[-1] + "\"\n\n")
+        cpp_file.write("t_set setArray[NUMBER_OF_DATASETS]\n\n")
+    with open(hpp_filename, 'w') as hpp_file: # hpp file
+        hpp_file.write("#include <stdint>\n\n")
+        hpp_file.write("#define NUMBER_OF_DATASETS ( " + str(number_of_datasets) + " )\n\n")
+        hpp_file.write("typedef struct\n")
+        hpp_file.write("{\n")
+        hpp_file.write("\tuint64_t *arrayStart;\n")
+        hpp_file.write("\tuint16_t arrayLength;\n")
+        hpp_file.write("\tuint8_t ledPin;\n")
+        hpp_file.write("} t_set;\n\n")
+        hpp_file.write("extern t_set setArray[NUMBER_OF_DATASETS];\n")
+
+def write_array_to_cpp(cpp_filename, csv_filename, unix_timestamps, led_pin):
+    # Open the cpp file ready to append
+    with open(cpp_filename, 'a') as cpp_file:
+        cpp_file.write("// --- Data from " + os.path.split(csv_filename)[-1] + "\n\n")
+        cpp_file.write("uint64_t " + generate_array_name(csv_filename) + "[] = {\n")
+        for item in unix_timestamps:
+            cpp_file.write("\t" + str(item) + ",\n")
+        cpp_file.write("}\n")
+        cpp_file.write("uint16_t " + generate_array_name(csv_filename) + "Length = " + str(len(unix_timestamps)) + "\n")
+        cpp_file.write("uint8_t " + generate_array_name(csv_filename) + "LedPin = " + str(led_pin) + "\n\n")
+
+
+def date_to_unix(day, month, year, hour=0, minute=0, second=0) -> int:
+    return int(time.mktime(datetime.datetime(year, month, day, hour, minute, second).timetuple()))
+
+def generate_array_name(csv_filename) -> str:
+    return os.path.splitext(os.path.split(csv_filename)[-1])[0] + "UnixArray"
+
+# def create_header(csv_file, hpp_file, array_name):
+#     # Read the data
+#     data = []
+#     with open(csv_file) as csvfile:
+#         reader = csv.reader(csvfile, delimiter=',')
+#         for row in reader:
+#             data.append(row)
+#     # And write some data
+#     with open(hpp_file, 'w') as header_file:
+#         header_file.write("#include <stdint>\n\n")
+#         header_file.write("uint64_t " + array_name + "[] = {\n")
+#         for date in data:
+#             unix = date_to_unix(int(date[0]), int(date[1]), int(date[2]))
+#             header_file.write("\t" + str(unix) + ",\n")
+#         header_file.write("};\n")
 
 if __name__ == '__main__': main()
