@@ -7,8 +7,8 @@ import csv
 OUTPUT_FILENAME = os.path.join('bin_day_arduino', 'auto_generated_data')
 
 # input file, led pin number
-SETTINGS = (('landfill.csv', 10),
-            ('recycling.csv', 9))
+SETTINGS = (('landfill.csv', 21),
+            ('recycling.csv', 2))
 
 def main():
     cpp_filename = OUTPUT_FILENAME+".cpp"

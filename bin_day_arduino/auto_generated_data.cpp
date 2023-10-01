@@ -30,7 +30,7 @@ const uint64_t landfillUnixArray[] = {
 	1721775600,
 };
 const uint16_t landfillUnixArrayLength = 24;
-const uint8_t landfillUnixArrayLedPin = 10;
+const uint8_t landfillUnixArrayLedPin = 21;
 
 // --- Data from recycling.csv
 
@@ -60,7 +60,7 @@ const uint64_t recyclingUnixArray[] = {
 	1721257200,
 };
 const uint16_t recyclingUnixArrayLength = 23;
-const uint8_t recyclingUnixArrayLedPin = 9;
+const uint8_t recyclingUnixArrayLedPin = 2;
 
 // Array of structs definition
 
