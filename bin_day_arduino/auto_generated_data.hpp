@@ -4,9 +4,9 @@
 
 typedef struct
 {
-	uint64_t *arrayStart;
-	uint16_t arrayLength;
-	uint8_t ledPin;
+	const uint64_t *arrayStart;
+	const uint16_t arrayLength;
+	const uint8_t ledPin;
 } t_binDay;
 
-extern t_binDay setArray[NUMBER_OF_DATASETS];
+const extern t_binDay setArray[NUMBER_OF_DATASETS];

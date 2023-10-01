@@ -1,11 +1,9 @@
 #include <stdint.h>
-#include "data.hpp"
-
-t_binDay setArray[NUMBER_OF_DATASETS]
+#include "auto_generated_data.hpp"
 
 // --- Data from landfill.csv
 
-uint64_t landfillUnixArray[] = {
+const uint64_t landfillUnixArray[] = {
 	1693954800,
 	1695164400,
 	1696374000,
@@ -31,12 +29,12 @@ uint64_t landfillUnixArray[] = {
 	1720566000,
 	1721775600,
 };
-uint16_t landfillUnixArrayLength = 24;
-uint8_t landfillUnixArrayLedPin = 10;
+const uint16_t landfillUnixArrayLength = 24;
+const uint8_t landfillUnixArrayLedPin = 10;
 
 // --- Data from recycling.csv
 
-uint64_t recyclingUnixArray[] = {
+const uint64_t recyclingUnixArray[] = {
 	1694646000,
 	1695855600,
 	1697065200,
@@ -61,12 +59,12 @@ uint64_t recyclingUnixArray[] = {
 	1720047600,
 	1721257200,
 };
-uint16_t recyclingUnixArrayLength = 23;
-uint8_t recyclingUnixArrayLedPin = 9;
+const uint16_t recyclingUnixArrayLength = 23;
+const uint8_t recyclingUnixArrayLedPin = 9;
 
 // Array of structs definition
 
-t_binDay setArray[NUMBER_OF_DATASETS] = {
+const t_binDay setArray[NUMBER_OF_DATASETS] = {
 	{.arrayStart = landfillUnixArray, .arrayLength = landfillUnixArrayLength, .ledPin = landfillUnixArrayLedPin},
 	{.arrayStart = recyclingUnixArray, .arrayLength = recyclingUnixArrayLength, .ledPin = recyclingUnixArrayLedPin},
 };
