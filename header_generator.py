@@ -4,7 +4,7 @@ import os
 import csv
 
 # Output file name with NO extension
-OUTPUT_FILENAME = os.path.join('bin_day_arduino', 'auto_generated', 'data')
+OUTPUT_FILENAME = os.path.join('bin_day_arduino', 'auto_generated_data')
 
 # input file, led pin number
 SETTINGS = (('landfill.csv', 10),
