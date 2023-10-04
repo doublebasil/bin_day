@@ -4,7 +4,7 @@
 #include "auto_generated_data.hpp"
 
 // Arduino will get stuck if debug is enabled but the board is not connected to a pc
-#define DEBUG_OUTPUT
+// #define DEBUG_OUTPUT
 
 // #define LED_TEST
 // #define BUTTON_TEST
@@ -90,7 +90,13 @@ void loop()
   // Check if it's bin day
   refreshBinDay();
 
-  // A delay which pretty much only affects 
+  // Check if a button is being pressed
+  readButton();
+
+  // Process the LED states
+  blinkHandler();
+
+  // A delay which is small enough for button polling
   delay( MAIN_REFRESH_DELAY );
 }
 
@@ -121,6 +127,10 @@ uint64_t getUnixFromWifi()
   Returns 0 on failure
   Makes MAX_CONNECT_ATTEMPTS attempts to connect to wifi
   */
+
+  #ifdef DEBUG_OUTPUT
+  Serial.println(" --- getUnixFromWifi() ");
+  #endif
 
   // Check the WiFi module
   if ( WiFi.status() == WL_NO_MODULE )
@@ -185,52 +195,72 @@ uint64_t getUnixFromWifi()
 
 void refreshBinDay()
 {
-
+  if ( currentUnixTime - lastBinDayCheckUnix > BINDAY_CHECK_DELAY )
+  {
+    checkForBinDay();
+    lastBinDayCheckUnix = currentUnixTime;
+  }
 }
 
 void checkForBinDay()
 {
-  uint64_t actualTime = downloadedUnixTime + ( ( millis() - wifiGetTimeMillis ) / 1000UL );
-  uint64_t* arrayPtr;
-
   #ifdef DEBUG_OUTPUT
-  Serial.println(" --- ");
-  Serial.println("actualTime = %d");
+  Serial.println(" --- checkForBinDay()");
+  Serial.print("currentUnixTime = ");
+  Serial.println( currentUnixTime );
   #endif
 
   // For each data set (For recyling and for landfill)
   for ( uint8_t dataSetNumber = 0; dataSetNumber < NUMBER_OF_DATASETS; dataSetNumber++ )
   {
-    #ifdef DEBUG_OUTPUT
-    Serial.println("dataSetNumber = ");
-    #endif
-    // For each bin day unix time
-    arrayPtr = (uint64_t*) setArray[dataSetNumber].arrayStart;
-    for ( uint16_t arrayIndex = 0; arrayIndex < setArray[dataSetNumber].arrayLength; arrayIndex++ )
+    checkBinDataset( dataSetNumber );
+  }
+}
+
+void checkBinDataset( uint8_t dataSetNumber )
+{
+  uint64_t* arrayPtr;
+
+  #ifdef DEBUG_OUTPUT
+  Serial.print("dataSetNumber = ");
+  Serial.println( dataSetNumber );
+  #endif
+  // For each bin day unix time
+  arrayPtr = (uint64_t*) setArray[dataSetNumber].arrayStart;
+  for ( uint16_t arrayIndex = 0; arrayIndex < setArray[dataSetNumber].arrayLength; arrayIndex++ )
+  {
+    // Check if the button has been pressed within this bin day
+    if ( ( lastButtonPressUnix > *arrayPtr - SECONDS_IN_TWELVE_HOURS ) && ( lastButtonPressUnix < *arrayPtr + SECONDS_IN_NINE_HOURS ) )
     {
-
-      // Check if the button has been pressed within this bin day
-      if ( ( *arrayPtr ) || ( *arrayPtr ) )
-      {
-        #ifdef DEBUG_OUTPUT
-        Serial.println("User has pressed button near this bin day");
-        #endif
-        blinkSpeed[dataSetNumber] = 0;
-        break;
-      }
-      // Check if bin day is tomorrow (slow blink)
-      // else if ()
-      // {
-
-      // }
-      // // Check if bin day is today (fast blink)
-      // else if ()
-      // {
-
-      // }
-      // Increment
-      arrayPtr++;
+      #ifdef DEBUG_OUTPUT
+      Serial.print( "User has pressed button near this bin day -> " );
+      Serial.println( *arrayPtr );
+      #endif
+      blinkSpeed[dataSetNumber] = 0;
+      break;
     }
+    // Check if bin day is tomorrow (slow blink)
+    else if ( ( currentUnixTime > *arrayPtr - SECONDS_IN_TWELVE_HOURS ) && ( currentUnixTime < *arrayPtr - SECONDS_IN_THREE_HOURS ) )
+    {
+      #ifdef DEBUG_OUTPUT
+      Serial.print( "Slow blink triggered from this bin day -> " );
+      Serial.println( *arrayPtr );
+      #endif
+      blinkSpeed[dataSetNumber] = SLOW_BLINK_DELAY;
+      break;
+    }
+    // Check if bin day is today (fast blink)
+    else if ( ( currentUnixTime > *arrayPtr + SECONDS_IN_SIX_HOURS ) && ( currentUnixTime < *arrayPtr - SECONDS_IN_NINE_HOURS ) )
+    {
+      #ifdef DEBUG_OUTPUT
+      Serial.print( "Fast blink triggered from this bin day -> " );
+      Serial.println( *arrayPtr );
+      #endif
+      blinkSpeed[dataSetNumber] = FAST_BLINK_DELAY;
+      break;
+    }
+    // Increment pointer
+    arrayPtr++;
   }
 }
 
@@ -249,11 +279,36 @@ bool readButton()
 void processButtonPress()
 {
   lastButtonPressUnix = downloadedUnixTime + ( ( millis() - wifiGetTimeMillis ) / 1000UL );
+
+  for ( uint8_t index = 0; index < NUMBER_OF_DATASETS; index++ )
+  {
+    if ( blinkSpeed[index] > 0 )
+    {
+      blinkSpeed[index] = 0;
+    }
+  }
+
+  #ifdef DEBUG_OUTPUT
+  Serial.print( "Recorded button press at " );
+  Serial.println( lastButtonPressUnix );
+  #endif
 }
 
 // --- LED functions
 
 void blinkHandler()
 {
-
+  // For each LED
+  for ( uint8_t dataSetNumber = 0; dataSetNumber < NUMBER_OF_DATASETS; dataSetNumber++ )
+  {
+    if ( blinkSpeed[dataSetNumber] == 0)
+    {
+      digitalWrite( setArray[dataSetNumber].ledPin, LOW );
+    }
+    else
+    {
+      digitalWrite( setArray[dataSetNumber].ledPin, ( millis() % ( blinkSpeed[dataSetNumber] * 2 ) > blinkSpeed[dataSetNumber] ) );
+    }
+  }
 }
+
