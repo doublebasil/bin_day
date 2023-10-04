@@ -4,7 +4,7 @@
 #include "auto_generated_data.hpp"
 
 // Arduino will get stuck if debug is enabled but the board is not connected to a pc
-// #define DEBUG_OUTPUT
+#define DEBUG_OUTPUT
 
 // #define LED_TEST
 // #define BUTTON_TEST
@@ -15,25 +15,28 @@
 #define MAX_GET_EPOCH_ATTEMPS     ( 50 )
 
 // Delay in seconds between using WiFi to check the time
-#define TIME_DOWNLOAD_PERIOD      ( SECONDS_IN_TEN_HOURS )
+#define TIME_DOWNLOAD_PERIOD      ( MILLISECONDS_IN_TEN_HOURS )
 // Button poll frequency in milliseconds
 #define BUTTON_POLL_FREQUENCY_MS  ( 50 )
 // LED toggle period in milliseconds. E.g. if value is 500, LED will toggle every 500 ms
 #define LED_TOGGLE_PERIOD         ( 1000 )
 
 // Global Variables
-uint64_t currentTime;               // Seconds since 1970
-uint64_t timeSinceTimeDownload = 0; // Seconds since WiFi.getTime() was last called
-uint64_t flashIntervalThing[NUMBER_OF_DATASETS];
-bool isItBinDay[NUMBER_OF_DATASETS];
+uint64_t currentTime;                             // The value returned WiFi.getTime(), in seconds
+uint64_t lastDownloadMillis;                      // The value of millis() last time WiFi.getTime was called
+uint64_t lastButtonPressMillis;                   // Value of millis() last time button was pressed
+uint64_t blinkSpeed[NUMBER_OF_DATASETS];          // Led blink speed in milliseconds, 0 means off and not blinking
 
-void setup() 
+void setup()
 {
   #ifdef DEBUG_OUTPUT
   // Start Serial
   Serial.begin( 9600 );
   // Wait for Serial to start
-  while ( !Serial );
+  while ( !Serial )
+  {
+    delay( 100 );
+  }
   #endif
 
   // Setup output pins
@@ -73,18 +76,25 @@ void setup()
 void loop() 
 {
   // Get unix time from WiFi
-  currentTime = getUnixFromWifi();
-  Serial.println( currentTime );
+  if ( ( currentTime == 0 ) || ( millis() - lastDownloadMillis > TIME_DOWNLOAD_PERIOD ) )
+  {
+    currentTime = getUnixFromWifi();
+    lastDownloadMillis = millis();
+    if ( currentTime == 0 )
+    {
+      // Time was not acquired from WiFi, wait 10 minutes and then try again
+      delay( MILLISECONDS_PER_TEN_MINUTES );
+      return;
+    }
+  }
 
+  // This isn't going to be very graceful
+
+  // Check if it's bin day
   checkForBinDay();
 
-  /*
-  Get the time from wifi every X hours
-  Blink the built-in led if there is no wifi
-  Blink an led if its bin day, until the button is pressed
-
-
-  */
+  // Wait ten minutes. RIP efficiency, I couldn't get low power mode to work so who cares
+  delay( MILLISECONDS_PER_TEN_MINUTES );
 }
 
 uint64_t getUnixFromWifi()
@@ -154,7 +164,54 @@ uint64_t getUnixFromWifi()
   return unixEpoch;
 }
 
+// This is where stuff start to get messy
+
 void checkForBinDay()
 {
-  //
+  uint64_t* actualTime = currentTime + ((millis() - lastDownloadMillis) / 1000);
+  uint64_t* ptr;
+
+  #ifdef DEBUG_OUTPUT
+  println(" --- ");
+  println("actualTime = %d");
+  #endif
+
+  // For each data set (For recyling and for landfill)
+  for ( uint8_t dataSetNumber = 0; dataSetNumber < NUMBER_OF_DATASETS; dataSetNumber++ )
+  {
+    #ifdef DEBUG_OUTPUT
+    Serial.println("dataSetNumber = ")
+    #endif
+    // For each bin day unix time
+    arrayStart = (uint64_t*) setArray[dataSetNumber].arrayStart;
+    for ( uint16_t arrayIndex = 0; arrayIndex < setArray[dataSetNumber].arrayLength; arrayIndex++ )
+    {
+
+      // Check if the button has been pressed within this bin day
+      if ( ( *ptr ) || ( *ptr ) )
+      {
+        #ifdef DEBUG_OUTPUT
+        Serial.println("User has pressed button near this bin day"); // could do with a variable being printed but not sure if it can print u64s
+        #endif
+        break;
+      }
+      // Check if bin day is tomorrow (slow blink)
+      else if ()
+      {
+
+      }
+      // Check if bin day is today (fast blink)
+      else if ()
+      {
+
+      }
+      // Increment
+      ptr++;
+    }
+  }
+}
+
+void blinkHandler()
+{
+
 }
