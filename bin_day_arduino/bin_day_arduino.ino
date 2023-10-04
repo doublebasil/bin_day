@@ -15,17 +15,21 @@
 #define MAX_GET_EPOCH_ATTEMPS     ( 50 )
 
 // Delay in seconds between using WiFi to check the time
-#define TIME_DOWNLOAD_PERIOD      ( MILLISECONDS_IN_TEN_HOURS )
+#define TIME_DOWNLOAD_PERIOD      ( SECONDS_IN_TEN_HOURS )
+// Delay between when the program should check if it's bin day
+#define BINDAY_CHECK_DELAY        ( SECONDS_PER_TEN_MINUTES )
 // Button poll frequency in milliseconds
-#define BUTTON_POLL_FREQUENCY_MS  ( 50 )
-// LED toggle period in milliseconds. E.g. if value is 500, LED will toggle every 500 ms
-#define LED_TOGGLE_PERIOD         ( 1000 )
+#define MAIN_REFRESH_DELAY        ( 100 )
+#define SLOW_BLINK_DELAY          ( 2000 )
+#define FAST_BLINK_DELAY          ( 1000 )
 
 // Global Variables
-uint64_t currentTime;                             // The value returned WiFi.getTime(), in seconds
-uint64_t lastDownloadMillis;                      // The value of millis() last time WiFi.getTime was called
-uint64_t lastButtonPressMillis;                   // Value of millis() last time button was pressed
-uint64_t blinkSpeed[NUMBER_OF_DATASETS];          // Led blink speed in milliseconds, 0 means off and not blinking
+uint64_t downloadedUnixTime;              // The value returned WiFi.getTime(), in seconds
+uint64_t currentUnixTime;                 // Unix time which is calculated by WiFi.getTime + time since calling Wifi.getTime
+uint32_t wifiGetTimeMillis;               // The value of millis() last time WiFi.getTime was called
+uint64_t lastBinDayCheckUnix;             // Unix time last time the bin data was checked
+uint64_t lastButtonPressUnix;             // Unix time last time the button was pressed
+uint16_t blinkSpeed[NUMBER_OF_DATASETS];  // Led blink speed in milliseconds, 0 means off and not blinking
 
 void setup()
 {
@@ -46,6 +50,8 @@ void setup()
   {
     pinMode( setArray[dataSetNumber].ledPin, OUTPUT );
   }
+
+  // --- Setup tests
 
   #ifdef LED_TEST
   // Test the LEDs
@@ -75,26 +81,37 @@ void setup()
 
 void loop() 
 {
-  // Get unix time from WiFi
-  if ( ( currentTime == 0 ) || ( millis() - lastDownloadMillis > TIME_DOWNLOAD_PERIOD ) )
+  // Get unix time from WiFi if needed
+  refreshTime();
+
+  // Calculate actual time
+  currentUnixTime = downloadedUnixTime + ( ( millis() - wifiGetTimeMillis ) / 1000UL );
+
+  // Check if it's bin day
+  refreshBinDay();
+
+  // A delay which pretty much only affects 
+  delay( MAIN_REFRESH_DELAY );
+}
+
+// --- Functions relating to fetching time from WiFi
+
+void refreshTime()
+{
+  if ( ( downloadedUnixTime == 0U ) || ( (millis() - wifiGetTimeMillis) / 1000UL > TIME_DOWNLOAD_PERIOD ) )
   {
-    currentTime = getUnixFromWifi();
-    lastDownloadMillis = millis();
-    if ( currentTime == 0 )
+    // Built in LED to indicate when WiFi is being accessed
+    digitalWrite( LED_BUILTIN, HIGH );
+    downloadedUnixTime = getUnixFromWifi();
+    wifiGetTimeMillis = millis();
+    if ( downloadedUnixTime == 0U )
     {
       // Time was not acquired from WiFi, wait 10 minutes and then try again
       delay( MILLISECONDS_PER_TEN_MINUTES );
       return;
     }
+    digitalWrite( LED_BUILTIN, LOW );
   }
-
-  // This isn't going to be very graceful
-
-  // Check if it's bin day
-  checkForBinDay();
-
-  // Wait ten minutes. RIP efficiency, I couldn't get low power mode to work so who cares
-  delay( MILLISECONDS_PER_TEN_MINUTES );
 }
 
 uint64_t getUnixFromWifi()
@@ -120,7 +137,7 @@ uint64_t getUnixFromWifi()
 
   // Connect to WiFi
   int64_t status = WL_IDLE_STATUS;
-  uint8_t connectAttempts = 0;
+  uint8_t connectAttempts = 0U;
   while ( WL_CONNECTED != status )
   {
     if ( connectAttempts++ == MAX_CONNECT_ATTEMPTS )
@@ -139,11 +156,11 @@ uint64_t getUnixFromWifi()
 
   // Get unix epoch, may take several attempts before WiFi is properly initialised
   uint64_t unixEpoch = WiFi.getTime();
-  uint8_t getEpochAttempts = 0;
+  uint8_t epochFetchAttempts = 0U;
   while ( 0 == unixEpoch )
   {
     delay( 200 );
-    if ( MAX_GET_EPOCH_ATTEMPS == getEpochAttempts++ )
+    if ( MAX_GET_EPOCH_ATTEMPS == epochFetchAttempts++ )
     {
       #ifdef DEBUG_OUTPUT
       Serial.println( "Took too many attempts to get epoch" );
@@ -157,59 +174,84 @@ uint64_t getUnixFromWifi()
 
   #ifdef DEBUG_OUTPUT
   Serial.print( "Fetched the unix epoch time in " );
-  Serial.print( ++getEpochAttempts );
+  Serial.print( ++epochFetchAttempts );
   Serial.println( " attempts" );
   #endif
 
   return unixEpoch;
 }
 
-// This is where stuff start to get messy
+// --- Functions relating to checking if it's bin day
+
+void refreshBinDay()
+{
+
+}
 
 void checkForBinDay()
 {
-  uint64_t* actualTime = currentTime + ((millis() - lastDownloadMillis) / 1000);
-  uint64_t* ptr;
+  uint64_t actualTime = downloadedUnixTime + ( ( millis() - wifiGetTimeMillis ) / 1000UL );
+  uint64_t* arrayPtr;
 
   #ifdef DEBUG_OUTPUT
-  println(" --- ");
-  println("actualTime = %d");
+  Serial.println(" --- ");
+  Serial.println("actualTime = %d");
   #endif
 
   // For each data set (For recyling and for landfill)
   for ( uint8_t dataSetNumber = 0; dataSetNumber < NUMBER_OF_DATASETS; dataSetNumber++ )
   {
     #ifdef DEBUG_OUTPUT
-    Serial.println("dataSetNumber = ")
+    Serial.println("dataSetNumber = ");
     #endif
     // For each bin day unix time
-    arrayStart = (uint64_t*) setArray[dataSetNumber].arrayStart;
+    arrayPtr = (uint64_t*) setArray[dataSetNumber].arrayStart;
     for ( uint16_t arrayIndex = 0; arrayIndex < setArray[dataSetNumber].arrayLength; arrayIndex++ )
     {
 
       // Check if the button has been pressed within this bin day
-      if ( ( *ptr ) || ( *ptr ) )
+      if ( ( *arrayPtr ) || ( *arrayPtr ) )
       {
         #ifdef DEBUG_OUTPUT
-        Serial.println("User has pressed button near this bin day"); // could do with a variable being printed but not sure if it can print u64s
+        Serial.println("User has pressed button near this bin day");
         #endif
+        blinkSpeed[dataSetNumber] = 0;
         break;
       }
       // Check if bin day is tomorrow (slow blink)
-      else if ()
-      {
+      // else if ()
+      // {
 
-      }
-      // Check if bin day is today (fast blink)
-      else if ()
-      {
+      // }
+      // // Check if bin day is today (fast blink)
+      // else if ()
+      // {
 
-      }
+      // }
       // Increment
-      ptr++;
+      arrayPtr++;
     }
   }
 }
+
+// --- Button functions
+
+bool readButton()
+{
+  bool buttonState = digitalRead( BUTTON_PIN );
+  if ( buttonState )
+  {
+    processButtonPress();
+  }
+  return buttonState;
+}
+
+void processButtonPress()
+{
+  lastButtonPressUnix = downloadedUnixTime + ( ( millis() - wifiGetTimeMillis ) / 1000UL );
+}
+
+// --- LED functions
 
 void blinkHandler()
 {
